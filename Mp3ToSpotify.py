@@ -47,6 +47,7 @@ uncertain_skipall = False
 
 # Attempts to find and add a song to spotify library
 def process_mp3(sp, filepath):
+    global uncertain_skipall, songs_added, songs_skipped, songs_not_found
     query = ""
     prompt_user_confirm = True # indicates if user should be prompted to confirm if multiple results
     basis = "unknown"
@@ -84,7 +85,7 @@ def process_mp3(sp, filepath):
         return False
     elif (sresults_found == 1 or prompt_user_confirm == False): # Perfect or assume first, adding
         log_line("Found one match for song: " + query)
-        add_to_spotify_library(searchResult['tracks']['items'][0]['id'])
+        add_to_spotify_library(sp, searchResult['tracks']['items'][0]['id'])
         songs_added.append(filepath)
         return True
     
@@ -140,17 +141,42 @@ def process_mp3(sp, filepath):
 
         # Add selected track to library
         log_line("Manually selected track for " + filepath)
-        add_to_spotify_library(searchResult['tracks']['items'][uselectionId]['id'])
+        add_to_spotify_library(sp, searchResult['tracks']['items'][uselectionId]['id'])
         songs_added.append(filepath)
         return True
 
+# Checks if the track is already in saved tracks
+user_saved_tracks = None
+def is_duplicate(sp, track_id):
+    global user_saved_tracks
+
+    # Get current saved tracks from spotify if not done already
+    if (user_saved_tracks == None):
+        result = sp.current_user_saved_tracks()
+        user_saved_tracks = []
+        for item in result['items']:
+            user_saved_tracks.append(item['track']['id'])
+
+    # Check if it's duplicate
+    return (track_id in user_saved_tracks)
+
+# This can be modified to add to specific playlists or do other things with the track
+# Currently it only adds the song to liked songs (saved tracks)
+def add_to_spotify_library(sp, track_id):
+    global user_saved_tracks
+    if (is_duplicate(sp, track_id)):
+        log_line("Track was already in library, continuing...")
+        return False
+
+    # Add to saved tracks (likes)
+    log_line("Adding track to Spotify: " + track_id)
+    sp.current_user_saved_tracks_add([track_id])
+
+    # Add to local saved tracks arr
+    user_saved_tracks.append(track_id)
+    return True
 
 
-
-def add_to_spotify_library(track_id):
-    #todo
-    print("debug: "+track_id)
-    return None
 
 ###
 # Import Script
@@ -179,3 +205,7 @@ includeSubdirectories = bool_input("Would you like to include subdirectories whi
 
 ## Authenticate with spotify & get spotify handle
 sp = spotify_authenticate()
+
+
+#test
+add_to_spotify_library(sp, "4PMvRfhHAx5j6Bb3XsFLoq")
