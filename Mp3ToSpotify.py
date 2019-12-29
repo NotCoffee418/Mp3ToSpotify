@@ -91,8 +91,17 @@ def process_mp3(sp, filepath):
         add_to_spotify_library(sp, searchResult['tracks']['items'][0]['id'])
         songs_added.append(filepath)
         return True
+    else: # Attempt to find perfect match automatically & add
+        for index, value in enumerate(searchResult['tracks']['items']):
+            spStr1 = value['artists'][0]['name'] + " - " + value['name']
+            spStr2 = value['name'] + " - " + value['artists'][0]['name']
+            if query.lower() == spStr1.lower() or query.lower() == spStr2.lower():
+                log_line("Found one match for song: " + query)
+                add_to_spotify_library(sp, value['id'])
+                songs_added.append(filepath)
+                return True
     
-    # implied else: Multiple results found and user should be prompted
+    # Multiple results found, no perfect match, user should be prompted
     # Check if user propted to skip uncertain results
     if (uncertain_skipall):
         log_line("Found multiple results for song '" + query + "' - Skipping (skipall enabled)")
