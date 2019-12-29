@@ -1,9 +1,10 @@
 import sys
-from os import listdir, path
+from os import listdir, path, walk, makedirs
 import datetime
 import spotipy
 import spotipy.util as util
 import eyed3
+from shutil import copyfile
 
 spotify = spotipy.Spotify()
 
@@ -24,10 +25,12 @@ def bool_input(queryString):
 
 # Logger function. File is in the same directory as the script.
 logFilePath = "Mp3ToSpotify-log-" + datetime.datetime.now().strftime("%Y%m%d%H%M%S") + ".log"
-def log_line(line):
+def log_line(line, alsoPrint=False):
     f=open(logFilePath, "a+")
     f.write(line + "\r\n")
     f.close()
+    if (alsoPrint):
+        print(line + "\r\n")
 
 # Authenticate the user with spotify
 def spotify_authenticate():
@@ -102,9 +105,7 @@ def process_mp3(sp, filepath):
 
     # Display choices (index+1 to reserve 0 for skip)
     for index, value in enumerate(searchResult['tracks']['items']):
-        entry_str = (index + 1) + ") " + value['artists'][0]['name'] + " - " + value['name']
-        if (len(value['albums']) > 0): # Add album name if available
-            entry += " (Album: " + value['albums'][0]['name'] + ")"
+        entry_str = str(index + 1) + ") " + value['artists'][0]['name'] + " - " + value['name']
         print(entry_str + "\r\n")
     print("0) (Skip this song)\r\n")
 
@@ -187,12 +188,10 @@ def get_currently_saved_tracks(sp):
 ###
 
 mp3Dir = ""
-includeSubdirectories = False
 
 # Disclaimer
 print("This tool will add mp3 files to your Spotify library.\r\n")
-print("WARNING: This process is irreversable and may be unable to add all songs.\r\n")
-print("")
+print("WARNING: This process is irreversable and may be unable to add all songs or add incorrect songs to your Spotify library.\r\n")
 
 # Input Data
 ## Get directory containing MP3s
@@ -203,9 +202,6 @@ while (path.isdir(mp3Dir) == False):
     else:
         print("The path you entered is not a valid directory.\r\n")
     mp3Dir = input("Enter the full path to the directory containing your MP3 files:\r\n")
-
-## Ask to check subdirectories
-includeSubdirectories = bool_input("Would you like to include subdirectories while searching for files?")
 
 ## Authenticate with spotify & get spotify handle
 sp = spotify_authenticate()
@@ -218,3 +214,67 @@ if (bool_input("Would you like to back up your current likes before proceeding (
     for track in saved_trackids:
         f.write(track + "\r\n")
     f.close()
+
+# Find all eligible files
+print("Scanning for valid mp3 files...\r\n")
+mp3_files = []
+for root, dirs, files in walk(mp3Dir):
+    for file in files:
+        if(file.endswith(".mp3")):
+            fpath = path.join(root,file)
+            mp3_files.append(fpath)
+total_to_process = len(mp3_files)
+print("Found " + str(total_to_process) + " mp3 files in this directory and it's subdirectories.\r\n\r\n")
+
+# Final "are you sure" prompt
+if (not bool_input("Ready to import songs. Are you sure you want to proceed?")):
+    log_line("User closed application. Nothing was done.")
+    sys.exit("Manually stopped")
+
+# Process all MP3 files
+for index, filepath in enumerate(mp3_files):
+    print("Processed " + str(index + 1) + " of " + str(total_to_process) + " songs.\r\n")
+    process_mp3(sp, filepath)
+
+# Print/log results
+log_line("\r\nAll songs have been processed.", True)
+log_line("Added or duplicate: " + str(len(songs_added)), True)
+log_line("Failed to find: " + str(len(songs_not_found)), True)
+log_line("Skipped: " + str(len(songs_not_found)), True)
+
+log_line("\r\nFiles added to spotify library:")
+for filepath in songs_added:
+    log_line(filepath)
+
+log_line("\r\nFiles we couldn't find in spotify:")
+for filepath in songs_not_found:
+    log_line(filepath)
+
+log_line("\r\nFiles that were skipped:")
+for filepath in songs_skipped:
+    log_line(filepath)
+
+# Copy skipped/missing files for manual review
+if (bool_input("Would you like to copy missing and skipped files to your desktop for manual review?")):
+    log_line("Copying files...", True)
+    # Prepare directories
+    copyIncompleteDir = path.expanduser("~/Desktop/Mp3ToSpotify/") # works cross-platform
+    copySkippedDir = copyIncompleteDir + "/skipped/"
+    copyNotFoundDir = copyIncompleteDir + "/notfound/"
+    if not path.exists(copyIncompleteDir):
+        makedirs(copyIncompleteDir)
+    if not path.exists(copySkippedDir):
+        makedirs(copySkippedDir)
+    if not path.exists(copyNotFoundDir):
+        makedirs(copyNotFoundDir)
+
+    # Copy skipped files
+    for filepath in songs_skipped:
+        copyfile(filepath, path.join(copySkippedDir, path.basename(filepath)))
+
+    # Copy notfound files
+    for filepath in songs_not_found:
+        copyfile(filepath, path.join(copyNotFoundDir, path.basename(filepath)))
+
+# Done
+input("Done! Press Enter to exit.")
