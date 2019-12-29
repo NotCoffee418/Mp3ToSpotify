@@ -152,10 +152,7 @@ def is_duplicate(sp, track_id):
 
     # Get current saved tracks from spotify if not done already
     if (user_saved_tracks == None):
-        result = sp.current_user_saved_tracks()
-        user_saved_tracks = []
-        for item in result['items']:
-            user_saved_tracks.append(item['track']['id'])
+        user_saved_tracks = get_currently_saved_tracks(sp)
 
     # Check if it's duplicate
     return (track_id in user_saved_tracks)
@@ -176,6 +173,13 @@ def add_to_spotify_library(sp, track_id):
     user_saved_tracks.append(track_id)
     return True
 
+# Returns all track ID's that are currently liked on spotify
+def get_currently_saved_tracks(sp):
+        result = sp.current_user_saved_tracks()
+        saved_tracks = []
+        for item in result['items']:
+            saved_tracks.append(item['track']['id'])
+        return saved_tracks
 
 
 ###
@@ -206,6 +210,11 @@ includeSubdirectories = bool_input("Would you like to include subdirectories whi
 ## Authenticate with spotify & get spotify handle
 sp = spotify_authenticate()
 
-
-#test
-add_to_spotify_library(sp, "4PMvRfhHAx5j6Bb3XsFLoq")
+# Request & create backup (trackids to text file, one per line)
+if (bool_input("Would you like to back up your current likes before proceeding (Recommended)?")):
+    saved_trackids = get_currently_saved_tracks(sp)
+    backupFilePath = "Mp3ToSpotify-backup-" + datetime.datetime.now().strftime("%Y%m%d%H%M%S") + ".txt"
+    f=open(backupFilePath, "a+")
+    for track in saved_trackids:
+        f.write(track + "\r\n")
+    f.close()

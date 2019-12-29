@@ -130,4 +130,5 @@ dmypy.json
 
 # Project-specific
 Mp3ToSpotify-log-*
+Mp3ToSpotify-backup-*
 .cache-*
